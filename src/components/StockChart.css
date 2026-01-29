@@ -1,19 +1,25 @@
 .custom-tooltip {
-  background: #ffffee;
-  border: 2px solid #999999;
-  padding: 8px;
+  background: #1a1a1a;
+  border: 1px solid #333333;
+  padding: 12px;
+  border-radius: 4px;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 4px 12px;
+  align-items: center;
 }
 
-.tooltip-date {
-  color: #666666;
-  font-size: 0.75rem;
-  margin: 0 0 3px 0;
-  font-weight: bold;
+.tooltip-label {
+  color: #999999;
+  font-size: 0.85rem;
+  margin: 0;
+  text-align: left;
 }
 
-.tooltip-price {
-  color: #000000;
-  font-size: 0.95rem;
+.tooltip-value {
+  color: #ffffff;
+  font-size: 0.85rem;
   font-weight: bold;
   margin: 0;
+  text-align: right;
 }

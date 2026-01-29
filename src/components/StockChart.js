@@ -6,10 +6,26 @@ function StockChart({ data, timeRange }) {
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const dataPoint = payload[0].payload;
+      const close = dataPoint.price || dataPoint.close || payload[0].value;
+      const open = dataPoint.open || close;
+      const high = dataPoint.high || close;
+      const low = dataPoint.low || close;
+      const volume = dataPoint.volume || 0;
+      
       return (
         <div className="custom-tooltip">
-          <p className="tooltip-date">{dataPoint.time || dataPoint.date}</p>
-          <p className="tooltip-price">${payload[0].value.toFixed(2)}</p>
+          <p className="tooltip-label">Date:</p>
+          <p className="tooltip-value">{dataPoint.time || dataPoint.date}</p>
+          <p className="tooltip-label">Close:</p>
+          <p className="tooltip-value">{close.toFixed(2)}</p>
+          <p className="tooltip-label">Open:</p>
+          <p className="tooltip-value">{open.toFixed(2)}</p>
+          <p className="tooltip-label">High:</p>
+          <p className="tooltip-value">{high.toFixed(2)}</p>
+          <p className="tooltip-label">Low:</p>
+          <p className="tooltip-value">{low.toFixed(2)}</p>
+          <p className="tooltip-label">Volume:</p>
+          <p className="tooltip-value">{volume.toLocaleString()}</p>
         </div>
       );
     }
