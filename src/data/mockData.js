@@ -1,21 +1,4 @@
-// Helper function to generate realistic OHLCV data from closing prices
-const generateOHLCV = (close, index, prevClose) => {
-  const volatility = 0.005; // 0.5% volatility
-  const baseOpen = prevClose || close * (1 - volatility);
-  const open = baseOpen + (Math.random() - 0.5) * close * volatility;
-  const high = Math.max(open, close) * (1 + Math.random() * volatility);
-  const low = Math.min(open, close) * (1 - Math.random() * volatility);
-  const baseVolume = 50000 + Math.random() * 100000;
-  const volume = Math.floor(baseVolume * (1 + Math.abs(close - open) / close * 10));
-  
-  return {
-    open: Number(open.toFixed(2)),
-    high: Number(high.toFixed(2)),
-    low: Number(low.toFixed(2)),
-    close: Number(close.toFixed(2)),
-    volume: volume
-  };
-};
+// Mock dataset for finance benchmark website
 
 // Hardcoded stock tickers
 export const TICKERS = [
