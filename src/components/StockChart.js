@@ -9,7 +9,6 @@ import {
   ResponsiveContainer,
   Brush,
   Customized,
-  ReferenceArea,
 } from 'recharts';
 import './StockChart.css';
 
