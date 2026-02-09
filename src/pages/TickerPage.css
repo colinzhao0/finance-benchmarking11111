@@ -84,10 +84,18 @@
   margin-bottom: 15px;
 }
 
+.chart-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .time-range-selector {
   display: flex;
   gap: 0;
-  margin-bottom: 15px;
   border: 1px solid #999999;
   width: fit-content;
 }
@@ -111,6 +119,36 @@
 }
 
 .time-range-selector button.active {
+  background: #6247aa;
+  color: white;
+}
+
+.chart-mode-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid #999999;
+  width: fit-content;
+}
+
+.chart-mode-toggle button {
+  padding: 5px 15px;
+  border: none;
+  border-right: 1px solid #999999;
+  background: #f0f0f0;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+
+.chart-mode-toggle button:last-child {
+  border-right: none;
+}
+
+.chart-mode-toggle button:hover {
+  background: #e0e0e0;
+}
+
+.chart-mode-toggle button.active {
   background: #6247aa;
   color: white;
 }

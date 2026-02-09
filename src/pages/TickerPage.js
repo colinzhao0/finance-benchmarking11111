@@ -10,6 +10,7 @@ function TickerPage() {
   const navigate = useNavigate();
   const [tickerInfo, setTickerInfo] = useState(null);
   const [timeRange, setTimeRange] = useState('1d');
+  const [chartMode, setChartMode] = useState('line');
   const [inWatchlist, setInWatchlist] = useState(false);
 
   useEffect(() => {
@@ -64,28 +65,44 @@ function TickerPage() {
         </button>
 
         <div className="chart-section">
-          <div className="time-range-selector">
-            <button
-              className={timeRange === '1d' ? 'active' : ''}
-              onClick={() => setTimeRange('1d')}
-            >
-              1D
-            </button>
-            <button
-              className={timeRange === '5d' ? 'active' : ''}
-              onClick={() => setTimeRange('5d')}
-            >
-              5D
-            </button>
-            <button
-              className={timeRange === '1m' ? 'active' : ''}
-              onClick={() => setTimeRange('1m')}
-            >
-              1M
-            </button>
+          <div className="chart-controls">
+            <div className="time-range-selector">
+              <button
+                className={timeRange === '1d' ? 'active' : ''}
+                onClick={() => setTimeRange('1d')}
+              >
+                1D
+              </button>
+              <button
+                className={timeRange === '5d' ? 'active' : ''}
+                onClick={() => setTimeRange('5d')}
+              >
+                5D
+              </button>
+              <button
+                className={timeRange === '1m' ? 'active' : ''}
+                onClick={() => setTimeRange('1m')}
+              >
+                1M
+              </button>
+            </div>
+            <div className="chart-mode-toggle">
+              <button
+                className={chartMode === 'line' ? 'active' : ''}
+                onClick={() => setChartMode('line')}
+              >
+                Line
+              </button>
+              <button
+                className={chartMode === 'candlestick' ? 'active' : ''}
+                onClick={() => setChartMode('candlestick')}
+              >
+                Candle
+              </button>
+            </div>
           </div>
 
-          <StockChart data={chartData} timeRange={timeRange} />
+          <StockChart data={chartData} timeRange={timeRange} chartMode={chartMode} />
         </div>
 
         <div className="stats-table">
