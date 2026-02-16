@@ -57,6 +57,12 @@
   color: #cc0000;
 }
 
+.current-time {
+  font-size: 0.8rem;
+  color: #666666;
+  margin-top: 4px;
+}
+
 .watchlist-btn {
   padding: 6px 12px;
   font-size: 0.9rem;

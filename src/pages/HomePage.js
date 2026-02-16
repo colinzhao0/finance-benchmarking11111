@@ -5,7 +5,7 @@ import { TICKERS, getTickerData } from '../data/mockData';
 import { getWatchlist, removeFromWatchlist } from '../utils/watchlist';
 import './HomePage.css';
 
-function HomePage() {
+function HomePage({ marketTimeIndex = 0 }) {
   const navigate = useNavigate();
   const [watchlist, setWatchlist] = useState([]);
 
@@ -42,8 +42,18 @@ function HomePage() {
               {watchlist.map(symbol => {
                 const data = getTickerData(symbol);
                 if (!data) return null;
-                
-                const isUp = data.change >= 0;
+                const intradayData = data['1d'] || [];
+                const currentIndex = Math.min(marketTimeIndex, Math.max(intradayData.length - 1, 0));
+                const currentPrice = intradayData[currentIndex]?.price ?? data.currentPrice;
+                const currentTimeLabel = intradayData[currentIndex]?.time
+                  || intradayData[currentIndex]?.date
+                  || '';
+                const basePrice = data.previousClose ?? intradayData[0]?.price ?? currentPrice;
+                const change = +(currentPrice - basePrice).toFixed(2);
+                const changePercent = basePrice
+                  ? +(((currentPrice - basePrice) / basePrice) * 100).toFixed(2)
+                  : 0;
+                const isUp = change >= 0;
                 return (
                   <div 
                     key={symbol}
@@ -53,10 +63,13 @@ function HomePage() {
                     <span className="remove-x" onClick={(e) => handleRemove(symbol, e)}>×</span>
                     <span className="stock-symbol">{symbol}</span>
                     <span className="stock-name">{data.name}</span>
-                    <span className="stock-price">${data.currentPrice}</span>
+                    <span className="stock-price">${currentPrice.toFixed(2)}</span>
                     <span className={`stock-change ${isUp ? 'positive' : 'negative'}`}>
-                      {isUp ? '+' : ''}{data.change} ({isUp ? '+' : ''}{data.changePercent}%)
+                      {isUp ? '+' : ''}{change} ({isUp ? '+' : ''}{changePercent}%)
                     </span>
+                    {currentTimeLabel && (
+                      <span className="stock-time">As of {currentTimeLabel}</span>
+                    )}
                   </div>
                 );
               })}

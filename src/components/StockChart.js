@@ -265,8 +265,19 @@ const ChartTooltip = ({ active, payload }) => {
 
 /* ──────────── Main Chart Component ──────────── */
 
-function StockChart({ data, timeRange, chartMode = 'line' }) {
-  const { enrichedData, initialBrushStart, initialBrushEnd } = useMemo(() => {
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function StockChart({ data, timeRange, chartMode = 'line', marketTimeIndex = 0 }) {
+  const {
+    enrichedData,
+    initialBrushStart,
+    initialBrushEnd,
+    enrichedPerOriginal,
+    onePeriodEnriched,
+    periodLen,
+  } = useMemo(() => {
     /* 1. extend raw data to multiple periods */
     const { data: extended, totalPeriods, periodLen } = generateExtendedData(data, timeRange);
     /* 2. add intermediate points for jagged look */
@@ -278,7 +289,14 @@ function StockChart({ data, timeRange, chartMode = 'line' }) {
     const onePeriodEnriched = Math.round(periodLen * enrichedPerOriginal);
     const bEnd = enriched.length - 1;
     const bStart = Math.max(0, enriched.length - onePeriodEnriched);
-    return { enrichedData: enriched, initialBrushStart: bStart, initialBrushEnd: bEnd };
+    return {
+      enrichedData: enriched,
+      initialBrushStart: bStart,
+      initialBrushEnd: bEnd,
+      enrichedPerOriginal,
+      onePeriodEnriched,
+      periodLen,
+    };
   }, [data, timeRange]);
 
   const [brushStart, setBrushStart] = useState(initialBrushStart);
@@ -290,6 +308,37 @@ function StockChart({ data, timeRange, chartMode = 'line' }) {
     setBrushStart(initialBrushStart);
     setBrushEnd(initialBrushEnd);
   }, [initialBrushStart, initialBrushEnd]);
+
+  useEffect(() => {
+    if (timeRange !== '1d') return;
+    if (!enrichedData.length || !periodLen) return;
+
+    const windowSize = Math.max(1, brushEnd - brushStart + 1);
+    const lastPeriodStart = Math.max(0, enrichedData.length - onePeriodEnriched);
+    const maxIndex = Math.max(0, periodLen - 1);
+    const clampedIndex = clamp(marketTimeIndex, 0, maxIndex);
+    const offset = Math.round(clampedIndex * enrichedPerOriginal);
+    const target = clamp(lastPeriodStart + offset, lastPeriodStart, enrichedData.length - 1);
+
+    let newEnd = clamp(target, lastPeriodStart + windowSize - 1, enrichedData.length - 1);
+    let newStart = newEnd - windowSize + 1;
+    if (newStart < lastPeriodStart) {
+      newStart = lastPeriodStart;
+      newEnd = clamp(newStart + windowSize - 1, newStart, enrichedData.length - 1);
+    }
+
+    if (newStart !== brushStart) setBrushStart(newStart);
+    if (newEnd !== brushEnd) setBrushEnd(newEnd);
+  }, [
+    marketTimeIndex,
+    timeRange,
+    enrichedData.length,
+    periodLen,
+    onePeriodEnriched,
+    enrichedPerOriginal,
+    brushStart,
+    brushEnd,
+  ]);
 
   // Handle scroll to shift timeframe
   useEffect(() => {

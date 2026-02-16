@@ -5,7 +5,7 @@ import { addToWatchlist, removeFromWatchlist, isInWatchlist } from '../utils/wat
 import StockChart from '../components/StockChart';
 import './TickerPage.css';
 
-function TickerPage() {
+function TickerPage({ marketTimeIndex = 0 }) {
   const { symbol } = useParams();
   const navigate = useNavigate();
   const [tickerInfo, setTickerInfo] = useState(null);
@@ -34,7 +34,15 @@ function TickerPage() {
 
   if (!tickerInfo) return null;
 
-  const isPositive = tickerInfo.change >= 0;
+  const intradayData = tickerInfo['1d'] || [];
+  const currentIndex = Math.min(marketTimeIndex, Math.max(intradayData.length - 1, 0));
+  const currentPoint = intradayData[currentIndex];
+  const currentTimeLabel = currentPoint?.time || currentPoint?.date || '';
+  const currentPrice = currentPoint?.price ?? tickerInfo.currentPrice;
+  const basePrice = tickerInfo.previousClose ?? intradayData[0]?.price ?? currentPrice;
+  const change = +(currentPrice - basePrice).toFixed(2);
+  const changePercent = basePrice ? +(((currentPrice - basePrice) / basePrice) * 100).toFixed(2) : 0;
+  const isPositive = change >= 0;
   const chartData = tickerInfo[timeRange];
 
   return (
@@ -50,10 +58,13 @@ function TickerPage() {
             <p className="company-name">{tickerInfo.name}</p>
           </div>
           <div className="price-info">
-            <div className="current-price">${tickerInfo.currentPrice}</div>
+            <div className="current-price">${currentPrice.toFixed(2)}</div>
             <div className={`price-change ${isPositive ? 'positive' : 'negative'}`}>
-              {isPositive ? '+' : ''}{tickerInfo.change} ({isPositive ? '+' : ''}{tickerInfo.changePercent}%)
+              {isPositive ? '+' : ''}{change} ({isPositive ? '+' : ''}{changePercent}%)
             </div>
+            {currentTimeLabel && (
+              <div className="current-time">As of {currentTimeLabel}</div>
+            )}
           </div>
         </div>
 
@@ -102,7 +113,12 @@ function TickerPage() {
             </div>
           </div>
 
-          <StockChart data={chartData} timeRange={timeRange} chartMode={chartMode} />
+          <StockChart
+            data={chartData}
+            timeRange={timeRange}
+            chartMode={chartMode}
+            marketTimeIndex={marketTimeIndex}
+          />
         </div>
 
         <div className="stats-table">

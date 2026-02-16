@@ -111,6 +111,13 @@
   color: #cc0000;
 }
 
+.stock-time {
+  font-size: 0.75rem;
+  color: #666666;
+  display: block;
+  margin-top: 4px;
+}
+
 .remove-x {
   float: right;
   color: #999999;
