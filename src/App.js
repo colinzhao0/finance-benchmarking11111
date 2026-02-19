@@ -12,8 +12,12 @@ function App() {
   useEffect(() => {
     if (maxIntradayPoints <= 1) return undefined;
     const intervalId = setInterval(() => {
-      setMarketTimeIndex((prev) => (prev + 1) % maxIntradayPoints);
-    }, 5000);
+      setMarketTimeIndex((prev) => {
+        // Stop at market close (last data point) — don't wrap around
+        if (prev >= maxIntradayPoints - 1) return prev;
+        return prev + 1;
+      });
+    }, 2000);
 
     return () => clearInterval(intervalId);
   }, [maxIntradayPoints]);

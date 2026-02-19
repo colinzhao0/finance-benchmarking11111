@@ -172,7 +172,7 @@ function enrichWithIntermediates(extData, timeRange) {
 
   for (let i = 0; i < extData.length; i++) {
     const pt = ensureOHLCV(extData[i], i * 100);
-    enriched.push(pt);
+    enriched.push({ ...pt, isActual: true, xIdx: i });
 
     if (i < extData.length - 1) {
       const next = ensureOHLCV(extData[i + 1], (i + 1) * 100);
@@ -190,10 +190,12 @@ function enrichWithIntermediates(extData, timeRange) {
         const rawL  = price - r(30) * vv * 2;
         enriched.push({
           [timeKey]: pt[timeKey] || '',
+          xIdx: i + j / (numIntermediate + 1), // fractional position between actuals
           price, open, close,
           high: +Math.max(rawH, open, close).toFixed(2),
           low:  +Math.min(rawL, open, close).toFixed(2),
           volume: Math.floor(40000 + r(40) * 160000),
+          isActual: false, // mark as intermediate for tooltip filtering
         });
       }
     }
@@ -244,6 +246,10 @@ const ChartTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
   const d = payload[0]?.payload;
   if (!d) return null;
+  
+  // Don't show tooltip for intermediate points (only actual data points)
+  if (d.isActual === false) return null;
+  
   const label = d.time || d.date;
   const cl = d.close ?? d.price;
   const op = d.open ?? cl;
@@ -275,14 +281,35 @@ function StockChart({ data, timeRange, chartMode = 'line', marketTimeIndex = 0 }
     initialBrushStart,
     initialBrushEnd,
     enrichedPerOriginal,
-    onePeriodEnriched,
     periodLen,
+    maxIndex,
+    tickLabels,
   } = useMemo(() => {
-    /* 1. extend raw data to multiple periods */
+    if (timeRange === '1d') {
+      /* 1D: no multi-period extension needed (no scroll / brush) */
+      const rawData = data || [];
+      const periodLen = rawData.length;
+      const enriched = enrichWithIntermediates(rawData, timeRange);
+      const enrichedPerOriginal = periodLen > 1 ? enriched.length / periodLen : 1;
+      // Strip date prefix from time labels (e.g. "1/17 9:30 AM" → "9:30 AM")
+      const tickLabels = rawData.map(d => {
+        const t = d.time || d.date || '';
+        const parts = t.trim().split(' ');
+        return parts.length > 1 ? parts.slice(1).join(' ') : t;
+      });
+      return {
+        enrichedData: enriched,
+        initialBrushStart: 0,
+        initialBrushEnd: enriched.length - 1,
+        enrichedPerOriginal,
+        periodLen,
+        maxIndex: Math.max(0, periodLen - 1),
+        tickLabels,
+      };
+    }
+    /* 5d / 1m: extend raw data to multiple periods */
     const { data: extended, totalPeriods, periodLen } = generateExtendedData(data, timeRange);
-    /* 2. add intermediate points for jagged look */
     const enriched = enrichWithIntermediates(extended, timeRange);
-    /* 3. calculate brush indices so one period is visible */
     const enrichedPerOriginal = periodLen > 1
       ? enriched.length / (periodLen * totalPeriods)
       : 1;
@@ -294,87 +321,85 @@ function StockChart({ data, timeRange, chartMode = 'line', marketTimeIndex = 0 }
       initialBrushStart: bStart,
       initialBrushEnd: bEnd,
       enrichedPerOriginal,
-      onePeriodEnriched,
       periodLen,
+      maxIndex: Math.max(0, periodLen - 1),
+      tickLabels: null,
     };
   }, [data, timeRange]);
 
-  const [brushStart, setBrushStart] = useState(initialBrushStart);
-  const [brushEnd, setBrushEnd] = useState(initialBrushEnd);
-  const chartRef = useRef(null);
+  /*
+   * For 1D: enrichedData is already just one day (9:30–4:00).
+   * Null-out prices for points after the current marketTimeIndex
+   * so the line grows from left to right while x-axis stays fixed.
+   */
+  const displayData = useMemo(() => {
+    if (timeRange !== '1d') return enrichedData;
 
-  // Update brush when data changes
-  useEffect(() => {
-    setBrushStart(initialBrushStart);
-    setBrushEnd(initialBrushEnd);
-  }, [initialBrushStart, initialBrushEnd]);
-
-  useEffect(() => {
-    if (timeRange !== '1d') return;
-    if (!enrichedData.length || !periodLen) return;
-
-    const windowSize = Math.max(1, brushEnd - brushStart + 1);
-    const lastPeriodStart = Math.max(0, enrichedData.length - onePeriodEnriched);
-    const maxIndex = Math.max(0, periodLen - 1);
     const clampedIndex = clamp(marketTimeIndex, 0, maxIndex);
     const offset = Math.round(clampedIndex * enrichedPerOriginal);
-    const target = clamp(lastPeriodStart + offset, lastPeriodStart, enrichedData.length - 1);
 
-    let newEnd = clamp(target, lastPeriodStart + windowSize - 1, enrichedData.length - 1);
-    let newStart = newEnd - windowSize + 1;
-    if (newStart < lastPeriodStart) {
-      newStart = lastPeriodStart;
-      newEnd = clamp(newStart + windowSize - 1, newStart, enrichedData.length - 1);
-    }
+    return enrichedData.map((point, i) => {
+      if (i <= offset) return point;
+      /* Future points — keep xIdx and isActual flag, null out prices */
+      const timeKey = point.time !== undefined ? 'time' : 'date';
+      return {
+        [timeKey]: point[timeKey],
+        xIdx: point.xIdx,
+        price: null,
+        open: null,
+        high: null,
+        low: null,
+        close: null,
+        volume: null,
+        isActual: point.isActual,
+      };
+    });
+  }, [enrichedData, marketTimeIndex, maxIndex, enrichedPerOriginal, timeRange]);
 
-    if (newStart !== brushStart) setBrushStart(newStart);
-    if (newEnd !== brushEnd) setBrushEnd(newEnd);
-  }, [
-    marketTimeIndex,
-    timeRange,
-    enrichedData.length,
-    periodLen,
-    onePeriodEnriched,
-    enrichedPerOriginal,
-    brushStart,
-    brushEnd,
-  ]);
+  /* Brush range as single state to avoid stale-closure bugs */
+  const [brushRange, setBrushRange] = useState([initialBrushStart, initialBrushEnd]);
+  const brushRangeRef = useRef(brushRange);
+  brushRangeRef.current = brushRange;
+  const chartRef = useRef(null);
 
-  // Handle scroll to shift timeframe
+  /* Reset brush when underlying data / time-range changes */
   useEffect(() => {
+    setBrushRange([initialBrushStart, initialBrushEnd]);
+  }, [initialBrushStart, initialBrushEnd]);
+
+  /* Scroll-wheel handler — only for non-1D views.
+   * Uses ref so the effect doesn't re-register on every brush change. */
+  useEffect(() => {
+    if (timeRange === '1d') return; // no scroll for 1D
     const chartElement = chartRef.current;
     if (!chartElement) return;
 
     const handleWheel = (e) => {
       e.preventDefault();
-      const scrollAmount = Math.sign(e.deltaY) * Math.max(1, Math.floor((brushEnd - brushStart) * 0.1));
-      
-      setBrushStart(prev => {
-        const newStart = prev + scrollAmount;
-        const newEnd = brushEnd + scrollAmount;
-        
-        // Prevent scrolling beyond bounds
-        if (newStart < 0) return 0;
-        if (newEnd >= enrichedData.length) return enrichedData.length - (brushEnd - prev) - 1;
-        
-        return newStart;
-      });
-      
-      setBrushEnd(prev => {
-        const newStart = brushStart + scrollAmount;
-        const newEnd = prev + scrollAmount;
-        
-        // Prevent scrolling beyond bounds
-        if (newStart < 0) return prev - brushStart;
-        if (newEnd >= enrichedData.length) return enrichedData.length - 1;
-        
-        return newEnd;
-      });
+      const [curStart, curEnd] = brushRangeRef.current;
+      const windowSize = curEnd - curStart;
+      const step = Math.max(1, Math.floor(windowSize * 0.1));
+      const scrollAmount = Math.sign(e.deltaY) * step;
+
+      let newStart = curStart + scrollAmount;
+      let newEnd = curEnd + scrollAmount;
+
+      /* Clamp to bounds */
+      if (newStart < 0) {
+        newStart = 0;
+        newEnd = windowSize;
+      }
+      if (newEnd >= enrichedData.length) {
+        newEnd = enrichedData.length - 1;
+        newStart = newEnd - windowSize;
+      }
+
+      setBrushRange([newStart, newEnd]);
     };
 
     chartElement.addEventListener('wheel', handleWheel, { passive: false });
     return () => chartElement.removeEventListener('wheel', handleWheel);
-  }, [brushStart, brushEnd, enrichedData.length]);
+  }, [enrichedData.length, timeRange]); // re-attach when total length or timeRange changes
 
   const xAxisKey = timeRange === '1d' ? 'time' : 'date';
 
@@ -383,17 +408,32 @@ function StockChart({ data, timeRange, chartMode = 'line', marketTimeIndex = 0 }
       <ResponsiveContainer width="100%" height={450}>
         <ComposedChart
           key={`${timeRange}-${chartMode}`}
-          data={enrichedData}
+          data={displayData}
           margin={{ top: 5, right: 20, bottom: 5, left: 10 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-          <XAxis
-            dataKey={xAxisKey}
-            stroke="#666"
-            tick={{ fontSize: 10, fontFamily: 'Arial' }}
-            interval="preserveStartEnd"
-            tickFormatter={(v) => v || ''}
-          />
+          {timeRange === '1d' ? (
+            // Numeric axis: actual points sit exactly at integer xIdx values,
+            // intermediates are at fractions between them — no duplicate labels.
+            <XAxis
+              type="number"
+              dataKey="xIdx"
+              domain={[0, periodLen - 1]}
+              ticks={Array.from({ length: periodLen }, (_, i) => i)}
+              tickFormatter={(v) => (tickLabels && tickLabels[v]) ? tickLabels[v] : ''}
+              stroke="#666"
+              tick={{ fontSize: 10, fontFamily: 'Arial' }}
+              interval="preserveStartEnd"
+            />
+          ) : (
+            <XAxis
+              dataKey={xAxisKey}
+              stroke="#666"
+              tick={{ fontSize: 10, fontFamily: 'Arial' }}
+              interval="preserveStartEnd"
+              tickFormatter={(v) => v || ''}
+            />
+          )}
           <YAxis
             stroke="#666"
             tick={{ fontSize: 11, fontFamily: 'Arial' }}
@@ -411,25 +451,30 @@ function StockChart({ data, timeRange, chartMode = 'line', marketTimeIndex = 0 }
               dot={false}
               activeDot={{ r: 4, fill: '#cc0000' }}
               isAnimationActive={false}
+              connectNulls={false}
             />
           ) : (
             <>
-              <Line dataKey="high" stroke="transparent" strokeWidth={0} dot={false} activeDot={false} isAnimationActive={false} />
-              <Line dataKey="low" stroke="transparent" strokeWidth={0} dot={false} activeDot={false} isAnimationActive={false} />
-              <Line dataKey="price" stroke="transparent" strokeWidth={0} dot={false} activeDot={false} isAnimationActive={false} />
+              <Line dataKey="high" stroke="transparent" strokeWidth={0} dot={false} activeDot={false} isAnimationActive={false} connectNulls={false} />
+              <Line dataKey="low" stroke="transparent" strokeWidth={0} dot={false} activeDot={false} isAnimationActive={false} connectNulls={false} />
+              <Line dataKey="price" stroke="transparent" strokeWidth={0} dot={false} activeDot={false} isAnimationActive={false} connectNulls={false} />
               <Customized component={CandlestickSeries} />
             </>
           )}
 
-          <Brush
-            dataKey={xAxisKey}
-            height={30}
-            stroke="#6247aa"
-            fill="#f8f8f8"
-            startIndex={brushStart}
-            endIndex={brushEnd}
-            tickFormatter={(v) => v || ''}
-          />
+          {/* No brush for 1D — full day is always visible */}
+          {timeRange !== '1d' && (
+            <Brush
+              dataKey={xAxisKey}
+              height={30}
+              stroke="#6247aa"
+              fill="#f8f8f8"
+              startIndex={brushRange[0]}
+              endIndex={brushRange[1]}
+              tickFormatter={(v) => v || ''}
+              onChange={({ startIndex, endIndex }) => setBrushRange([startIndex, endIndex])}
+            />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
     </div>
