@@ -148,39 +148,43 @@ export function getMinuteBar(symbol, basePrice, dayNum, minuteIdx) {
 
 /* ── Market state ─────────────────────────────────────────────────────────── */
 
-const MARKET_OPEN_SEC  = 9 * 3600 + 30 * 60; // 34200 s  (9:30 AM ET)
-const MARKET_CLOSE_SEC = 16 * 3600;           // 57600 s  (4:00 PM ET)
+const MARKET_OPEN_SEC  = 9 * 3600 + 30 * 60; // 34200 s  (9:30 AM local)
+const MARKET_CLOSE_SEC = 16 * 3600;           // 57600 s  (4:00 PM local)
 export const MARKET_DURATION = 23400;          // 6.5 hours in seconds
 
+// Simulation is pinned to Feb 21, 2026 — price history is generated relative
+// to this day, giving fully reproducible data regardless of when you run it.
+export const SIMULATED_DAY_NUM =
+  Math.floor(new Date('2026-02-21T00:00:00Z').getTime() / 86400000);
+
 /**
- * Get the current market state based on real-world clock time.
- * Uses UTC-5 as ET offset (ignores DST — fine for a demo site).
+ * Get the current market state.
+ * - Day is always the hardcoded Feb 21, 2026 simulation date.
+ * - Market open/close times (9:30 AM – 4:00 PM) are based on local wall-clock time.
+ * - Weekend checks are skipped: Feb 21 is always treated as a trading day.
  *
  * @returns {{ dayNum, marketSec, isOpen, unixSec }}
  */
 export function getCurrentMarketState() {
-  const now        = Date.now();
-  const unixSec    = Math.floor(now / 1000);
-  const dayNum     = Math.floor(now / 86400000);
-  const etSecOfDay = ((unixSec % 86400) - 5 * 3600 + 86400) % 86400;
-  const dow        = new Date(now).getUTCDay(); // 0=Sun, 6=Sat
+  const now     = Date.now();
+  const unixSec = Math.floor(now / 1000);
+  const local   = new Date(now);
+  const localSecOfDay =
+    local.getHours() * 3600 + local.getMinutes() * 60 + local.getSeconds();
 
   let marketSec, isOpen;
-  if (dow === 0 || dow === 6) {
-    marketSec = MARKET_DURATION; // weekend → show full Friday session
+  if (localSecOfDay < MARKET_OPEN_SEC) {
+    marketSec = 0;               // before 9:30 AM — show market as just opened
     isOpen    = false;
-  } else if (etSecOfDay < MARKET_OPEN_SEC) {
-    marketSec = 0;     // pre-market
-    isOpen    = false;
-  } else if (etSecOfDay >= MARKET_CLOSE_SEC) {
-    marketSec = MARKET_DURATION; // after close
+  } else if (localSecOfDay >= MARKET_CLOSE_SEC) {
+    marketSec = MARKET_DURATION; // after 4:00 PM — show full day
     isOpen    = false;
   } else {
-    marketSec = etSecOfDay - MARKET_OPEN_SEC;
+    marketSec = localSecOfDay - MARKET_OPEN_SEC;
     isOpen    = true;
   }
 
-  return { dayNum, marketSec, isOpen, unixSec };
+  return { dayNum: SIMULATED_DAY_NUM, marketSec, isOpen, unixSec };
 }
 
 /* ── Derived market statistics ────────────────────────────────────────────── */
