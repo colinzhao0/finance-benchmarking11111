@@ -1,33 +1,26 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import TickerPage from './pages/TickerPage';
-import { getMaxIntradayPoints } from './data/mockData';
 import './App.css';
 
 function App() {
-  const maxIntradayPoints = useMemo(() => getMaxIntradayPoints(), []);
-  const [marketTimeIndex, setMarketTimeIndex] = useState(0);
+  // Unix timestamp in seconds — updated every second to drive real-time prices.
+  const [currentTimestamp, setCurrentTimestamp] = useState(Math.floor(Date.now() / 1000));
 
   useEffect(() => {
-    if (maxIntradayPoints <= 1) return undefined;
-    const intervalId = setInterval(() => {
-      setMarketTimeIndex((prev) => {
-        // Stop at market close (last data point) — don't wrap around
-        if (prev >= maxIntradayPoints - 1) return prev;
-        return prev + 1;
-      });
-    }, 2000);
-
-    return () => clearInterval(intervalId);
-  }, [maxIntradayPoints]);
+    const id = setInterval(() => {
+      setCurrentTimestamp(Math.floor(Date.now() / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <Router>
       <div className="App">
         <Routes>
-          <Route path="/" element={<HomePage marketTimeIndex={marketTimeIndex} />} />
-          <Route path="/tickers/:symbol" element={<TickerPage marketTimeIndex={marketTimeIndex} />} />
+          <Route path="/"                 element={<HomePage   currentTimestamp={currentTimestamp} />} />
+          <Route path="/tickers/:symbol"  element={<TickerPage currentTimestamp={currentTimestamp} />} />
         </Routes>
       </div>
     </Router>
